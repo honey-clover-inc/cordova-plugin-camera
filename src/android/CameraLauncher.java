@@ -147,7 +147,9 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         this.callbackContext = callbackContext;
         //Adding an API to CoreAndroid to get the BuildConfigValue
         //This allows us to not make this a breaking change to embedding
-        this.applicationId = (String) BuildHelper.getBuildConfigValue(cordova.getActivity(), "APPLICATION_ID");
+        /* HACK: Version suffixを考慮 */
+//        this.applicationId = (String) BuildHelper.getBuildConfigValue(cordova.getActivity(), "APPLICATION_ID");
+        this.applicationId = cordova.getActivity().getApplicationInfo().packageName;
         this.applicationId = preferences.getString("applicationId", this.applicationId);
 
 
@@ -195,11 +197,11 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 }
                 else if ((this.srcType == PHOTOLIBRARY) || (this.srcType == SAVEDPHOTOALBUM)) {
                     // FIXME: Stop always requesting the permission
-                    if(!PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)) {
-                        PermissionHelper.requestPermission(this, SAVE_TO_ALBUM_SEC, Manifest.permission.READ_EXTERNAL_STORAGE);
-                    } else {
+//                    if(!PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)) {
+//                        PermissionHelper.requestPermission(this, SAVE_TO_ALBUM_SEC, Manifest.permission.READ_EXTERNAL_STORAGE);
+//                    } else {
                         this.getImage(this.srcType, destType);
-                    }
+//                    }
                 }
             }
             catch (IllegalArgumentException e)
@@ -245,8 +247,17 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param encodingType           Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
      */
     public void callTakePicture(int returnType, int encodingType) {
-        boolean saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
-                && PermissionHelper.hasPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        boolean saveAlbumPermission;
+        if (Build.VERSION.SDK_INT < 29) {
+          saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+            && PermissionHelper.hasPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        } else if (Build.VERSION.SDK_INT < 33) {
+            saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE);
+        } else {
+          saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
+            && PermissionHelper.hasPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
+            && PermissionHelper.hasPermission(this, Manifest.permission.READ_MEDIA_VIDEO);
+        }
         boolean takePicturePermission = PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
 
         // CB-10120: The CAMERA permission does not need to be requested unless it is declared
@@ -272,6 +283,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             }
         }
 
+        /* HACK: else以下も直すべきだが、正しい設定がされていれば通らないので今回は修正対象外とする */
         if (takePicturePermission && saveAlbumPermission) {
             takePicture(returnType, encodingType);
         } else if (saveAlbumPermission) {
